@@ -1,0 +1,32 @@
+version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: circleci/node
+    steps:
+      - setup_remote_docker:
+          version: 20.10.14
+          docker_layer_caching: true
+      - checkout:
+          path: ~/repo
+      - run:
+          name: Install AWS CLI
+          command: |
+            sudo apt update -y
+            sudo apt install awscli -y
+      - run:
+          name: Login into ECR
+          command: aws ecr-public get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_URI
+      - run:
+          name: Build Docker image
+          command: docker build -t $IMAGE_NAME .
+      - run:
+          name: Tag Docker image
+          command: docker tag $IMAGE_NAME:latest $ECR_URI/$IMAGE_NAME:latest
+      - run:
+          name: Push Docker image to ECR
+          command: docker push $ECR_URI/$IMAGE_NAME:latest          
+      - run:
+          name: Deploy to ECS
+          command: aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --region $AWS_REGION --force-new-deployment
